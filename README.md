@@ -19,10 +19,15 @@ You get a **BONUS MAN AT 10000**
 
 # Controls
 `Left and right on D-keys` Moves Quasi (obviously)
+
 `2nd` Jump
+
 `5` inserts coin
+
 `1` starts one player game if there's credits (Ah crud forgot to implement two player mode atm)
+
 `clear` quits
+
 `Typing in "ISUCK"` activates Developer Mode, you can choose levels and choose lives up until ten then infinity. You can kinda say it's a cheat mode but scores are not saved after a game over
 
 # erro
