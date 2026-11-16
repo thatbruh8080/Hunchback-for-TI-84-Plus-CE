@@ -1,0 +1,27 @@
+	section .icon
+
+	jp	___prgm_init
+	db	$01
+	public ___icon
+___icon:
+	db	$10, $10
+	db	$FF, $FF, $FF, $FF, $FF, $FF, $54, $54, $54, $54, $FF, $FF, $FF, $FF, $FF, $FF
+	db	$FF, $FF, $FF, $FF, $FF, $54, $54, $FF, $FF, $54, $54, $FF, $FF, $FF, $FF, $FF
+	db	$FF, $FF, $FF, $FF, $FF, $FF, $54, $54, $54, $54, $FF, $FF, $FF, $FF, $FF, $FF
+	db	$FF, $FF, $FF, $FF, $FF, $54, $FF, $FF, $54, $54, $54, $FF, $FF, $FF, $FF, $FF
+	db	$FF, $FF, $FF, $FF, $54, $FF, $FF, $54, $54, $54, $54, $54, $FF, $FF, $FF, $FF
+	db	$FF, $FF, $FF, $FF, $54, $FF, $FF, $54, $54, $54, $54, $54, $FF, $FF, $FF, $FF
+	db	$FF, $FF, $FF, $54, $54, $FF, $FF, $54, $54, $54, $54, $54, $54, $FF, $FF, $FF
+	db	$FF, $FF, $FF, $54, $FF, $FF, $FF, $E7, $E7, $E7, $E7, $54, $54, $FF, $FF, $FF
+	db	$FF, $FF, $54, $FF, $FF, $FF, $54, $54, $54, $54, $54, $E7, $E7, $54, $FF, $FF
+	db	$FF, $54, $FF, $FF, $FF, $54, $54, $54, $54, $54, $54, $54, $54, $E7, $E7, $FF
+	db	$54, $FF, $FF, $FF, $FF, $A3, $A3, $A3, $A3, $A3, $A3, $54, $54, $54, $54, $54
+	db	$54, $FF, $A3, $A3, $A3, $00, $00, $54, $54, $00, $00, $A3, $A3, $A3, $54, $54
+	db	$54, $A3, $00, $00, $00, $00, $54, $FF, $54, $54, $00, $00, $00, $00, $A3, $54
+	db	$FF, $A3, $00, $00, $00, $00, $54, $FF, $54, $54, $00, $00, $00, $00, $A3, $FF
+	db	$FF, $FF, $A3, $A3, $A3, $00, $00, $54, $54, $00, $00, $A3, $A3, $A3, $FF, $FF
+	db	$FF, $FF, $FF, $FF, $FF, $A3, $A3, $A3, $A3, $A3, $A3, $FF, $FF, $FF, $FF, $FF
+	public ___description
+___description:
+	db	"CE port of the 1983 coin-op original", 0
+___prgm_init:
