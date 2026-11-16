@@ -7,3 +7,6 @@ Arcade conversion of the 1983 coin-op game of the same name by Century Electroni
 <div>
   <img src="scrshot2.png" alt="openg" title="openg"/>
 </div>
+<div>
+  <img src="scrshot3.png" alt="rope" title="rope"/>
+</div>
