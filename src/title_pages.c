@@ -20,7 +20,6 @@ static void text(const char *s, int x, int y, uint8_t color)
     gfx_PrintStringXY(s, x, y);
 }
 
-// These tiny pictures don't need a permanent unpacked RAM cache.
 static void picture(const uint8_t *data, unsigned height, int x, int y,
                     const uint8_t *colors, unsigned bpp)
 {
@@ -48,6 +47,7 @@ void titlePageCredits(uint8_t credits)
 
 void titlePageDraw(bool instructions, uint8_t credits)
 {
+    // PLAYER INSTRUCTIONS SETUP
     static const uint8_t bellColors[] = {0, WHITE, YELLOW, MAGENTA, RED};
     gfx_SetDrawBuffer();
     gfx_FillScreen(0);
@@ -82,8 +82,7 @@ void titlePageDraw(bool instructions, uint8_t credits)
 void titleHeartsDraw(unsigned first, unsigned end)
 {
     static const uint8_t colors[] = {0, RED, WHITE, 0};
-    // Sparse hearts like the footage. No more wallpapering the whole castle.
-    // Reference x positions are spread across the CE's wider screen.
+    // Scatters hearts across these places
     static const uint8_t spots[][2] = {
         {200,20}, {144,124}, {32,180}, {56,132}, {136,156}, {144,52},
         {16,204}, {8,4}, {216,60}, {120,204}, {32,124}, {184,196},
