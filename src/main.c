@@ -120,7 +120,6 @@ static void restoreBackground(int x, int y, int width, int height)
     }
 }
 
-// Prints two digits without pulling in formatted-printing code.
 static void drawCredits(uint8_t credits)
 {
     char text[] = "CREDIT 00";
@@ -146,6 +145,7 @@ static void drawPlayerStart(uint8_t credits)
 
 static void drawTitle(uint8_t credits)
 {
+    // Draws title
     gfx_SetDrawBuffer();
     gfx_SetClipRegion(0, 0, 320, 240);
     gfx_SetTextScale(1, 1);
@@ -204,7 +204,7 @@ int main(void)
     uint32_t lastFlash = clock(), lastPose = lastFlash;
     uint32_t stateTime = lastFlash, lastFrame = lastFlash;
 
-    // Ignore keys held while launching. One press buys one coin, not 99.
+    // If a key is pressed while launching just ignore it
     kb_Scan();
     uint8_t previousKeys[8];
     for (unsigned g = 1; g < 8; ++g) previousKeys[g] = kb_Data[g];
@@ -319,7 +319,7 @@ int main(void)
                 titlePageDraw(screen == INSTRUCTIONS, credits);
             } else if (screen == PLAYER_START) {
                 drawPlayerStart(credits);
-                gameGfxPrepare(); // PLAYER 1 keeps everyone busy while we unpack.
+                gameGfxPrepare(); // PLAYER 1 keeps everyone busy while the graphics unpack into 8 bpp mode
             } else if (screen == ATTRACT) {
                 gameGfxPrepare();
                 openingAttractBegin(credits, redDemo);
@@ -331,7 +331,7 @@ int main(void)
         }
         if (screen == PLAYER_START) {
             if (now - stateTime >= CLOCKS_PER_SEC) {
-                openingBegin(credits); // Fresh score, lives and blue palette.
+                openingBegin(credits); // Fresh scoar
                 openingDraw(credits);
                 screen = OPENING;
                 lastFrame = clock();
@@ -405,7 +405,6 @@ int main(void)
             next = HIGH_SCORES;
             blankTicks = 32;
         } else if (screen == TITLE) {
-            // Eight arcade ticks per colour: 0.16 s, measured from the footage.
             uint32_t flashes = (now - lastFlash) / (8 * frameTicks);
             if (flashes) {
                 lastFlash += flashes * 8 * frameTicks;
@@ -423,7 +422,7 @@ int main(void)
                 drawActors(&poses[pose]);
             }
             if (now - stateTime >= 640 * frameTicks) {
-                // The logo freezes while the hearts appear, just like MAME.
+                // Have the logo freeze while the hearts be drawing (Like in the coin op)
                 screen = HEARTS;
                 heartsDrawn = 0;
                 stateTime = now;
