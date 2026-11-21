@@ -16,7 +16,7 @@ Basically you're this not so handsome lad with sciliocis called Quasimodo who ha
 
 Along the way you have to jump over arrows and fireballs, do some Pitfall-swinging over burning pits, jump over ramparts, some of those ramparts containing knights with lances ready to skewer your butt, four ropes you have to hang on and at the end of each screen there's a church bell on the right that you have to ring to get to the next stage. And to even motivate you to stop fannying around well there's a nice knight who climbs the castle walls wielding a flamethrower to cook your butt, so you wouldn't fanny around
 
-There's 32 stages I believe, every sixteen stages you go into a Rivets-like stage, like the one in Donkey Kong where you have to walk through bell platform thingies to make em disappear before every Esmeralda disappears
+There's 32 stages I believe, every sixteen stages you go into a Rivets-like stage, like the one in Donkey Kong where you have to walk through bell platform thingies to make em disappear before every Esmeralda disappears, so you can't fanny around either
 
 Beat those 32 stages and the game loops and becomes harder
 
@@ -29,11 +29,13 @@ You get a **BONUS MAN AT 10000**
 
 `5` inserts coin
 
-`1` starts one player game if there's credits (Ah shoot forgot to implement two player mode atm)
+`1` starts one player game if there's credits
+
+`2` starts two player game if there's two credits minimum
 
 `clear` quits
 
-`Typing in "ISUCK"` activates Developer Mode, you can choose levels and choose lives up until ten then infinity. You can kinda say it's a cheat mode but scores are not saved after a game over
+`Typing in "ISUCK"` activates Developer Mode, you can choose levels and choose lives up until ten then infinity. You can kinda say it's a cheat mode but scores are not saved after a game over and you get an annoying DEVELOPER MODE banner. Mainly just for testing
 
 # erro
 Unless you're below OS 5.5.5 TI got rid of machine language program support (I mean this is OBVIOUSLY not made using TI-Basic) so you need a jailbreak called ArTIfiCE, on current versions there's a program called A, that's the jailbreak.
