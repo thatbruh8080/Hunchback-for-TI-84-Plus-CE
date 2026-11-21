@@ -1,6 +1,7 @@
 #include <graphx.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <time.h>
 
 #include "gfx/gfx.h"
@@ -109,6 +110,15 @@ static uint8_t hudTick;
 static unsigned transitionTick;
 static uint8_t hudRefresh;
 static uint8_t level, lives, walkTick, deathTick;
+typedef enum { PIT_DROP, MISSED_JUMP, WEAPON_HIT, CAUGHT } FallCause;
+static bool hitFall;
+static bool paired;
+static unsigned playerIndex;
+static struct {
+    Scoring score;
+    uint8_t level, lives;
+} partner;
+
 static bool leftDown, rightDown, jumpQueued, airborne, facingLeft;
 
 void openingInput(bool left, bool right, bool jumpPressed)
@@ -202,6 +212,25 @@ static void resetPlayer(void)
     }
     scoringStartStage(&scoring);
     phase = LEVEL_READY;
+}
+
+static void fallStep(void)
+{
+    // $2842 is 1, 2, 3, 4, 5, 6, 7. Seven is plenty for this poor fellow.
+    if (velocity8 < 7 * 8) velocity8 += 8;
+    feet8 += velocity8;
+    quasiFeet = feet8 / 8;
+}
+
+static void beginFall(FallCause cause)
+{
+    phase = FALLING;
+    jumpQueued = false;
+    onRope = false;
+    hitFall = cause == WEAPON_HIT || cause == CAUGHT;
+    deathTick = cause == WEAPON_HIT ? 0 : 50;
+    velocity8 = cause == MISSED_JUMP ? 6 * 8 : 0;
+    if (cause == PIT_DROP) fallStep();
 }
 
 static void updatePlayer(void)
@@ -309,20 +338,16 @@ static void updatePlayer(void)
                 velocity8 = 0;
                 quasiFrame = (walkTick / 5) % 4;
             } else {
-                phase = FALLING;
-                velocity8 = 40;
+                beginFall(PIT_DROP);
             }
         }
     } else if (!supported()) {
-        phase = FALLING;
-        velocity8 = 40;
+        beginFall(PIT_DROP);
     } else if (direction) {
         quasiFrame = (++walkTick / 5) % 4;
     }
-    if (airborne && jumpTick == 48 && feet8 > WALL_TOP * 8) {
-        phase = FALLING;
-        velocity8 = 40;
-    }
+    if (phase == LEVEL_READY && airborne && jumpTick == 48 && feet8 > WALL_TOP * 8)
+        beginFall(MISSED_JUMP);
 hazards:
     // With no horizontal input, keep the current walking frame.
     quasiFeet = feet8 / 8;
@@ -339,9 +364,8 @@ hazards:
             // Both boys can choose the same height. No reserved lanes here.
             if (x + 12 > px + inset && x + 4 < px + 12 - inset
                 && quasiFeet > y + top && quasiFeet - 20 < y + height) {
-                velocity8 = 80;
-                onRope = false;
-                phase = FALLING;
+                beginFall(WEAPON_HIT);
+                break;
             }
         }
     }
@@ -534,7 +558,12 @@ static void drawMinimap(void)
 {
     // Opaque drawing restores the old marker too. The castle is the arcade icon.
     gfx_Sprite(game_minicastle, MINIMAP_X, MINIMAP_Y);
-    if (!attractMode && phase >= LEVEL_READY && phase != RESTART_SLIDE && !(hudTick & 16)) {
+    if (rescueStage()) {
+        // Esmie is in the rescue room now. Keep the ramparts and the blinking dot.
+        gfx_SetColor(SCENE_BLACK);
+        gfx_FillRectangle(MINIMAP_X + 59, MINIMAP_Y, 5, 8);
+    }
+    if (!attractMode && phase >= LEVEL_READY && phase != RESTART_SLIDE && !((hudTick - 1u) & 16)) {
         // Stage 1 and 2 are four pixels apart in the footage, not world positions.
 // Stage 3 continues that spacing until its marker is verified separately.
         gfx_SetColor(SCENE_GREEN);
@@ -544,6 +573,8 @@ static void drawMinimap(void)
 
 static void beginScene(uint8_t credits, bool presentHud)
 {
+    paired = false;
+    playerIndex = 0;
     projectilesSeed((uint32_t)clock());
     projectilesReset(0);
     // Opening prepping
@@ -592,9 +623,38 @@ static void beginScene(uint8_t credits, bool presentHud)
     if (presentHud) gfx_BlitBuffer();
 }
 
-void openingBegin(uint8_t credits)
+void openingStartGame(uint8_t credits, bool pair)
 {
     beginScene(credits, true);
+    paired = pair;
+    partner.level = 0;
+    partner.lives = pair ? 3 : 0;
+    scoringNewGame(&partner.score);
+}
+
+// Swap just the progress that survives a lost life. Hazards restart per turn.
+bool openingResumePartner(void)
+{
+    if (!paired || !partner.lives) return false;
+    Scoring outgoing = scoring;
+    uint8_t outgoingLives = lives, outgoingLevel = level;
+    scoring = partner.score;
+    lives = partner.lives;
+    level = partner.level;
+    partner.score = outgoing;
+    partner.lives = outgoingLives;
+    partner.level = outgoingLevel;
+    playerIndex ^= 1;
+    cameraX = level * 320;
+    gfx_SetDrawBuffer();
+    gfx_SetPalette(scene_palette, sizeof_scene_palette, SCENE_BASE);
+    gfx_SetTextBGColor(SCENE_BLACK);
+    gfx_SetTextTransparentColor(SCENE_BLACK);
+    stagePalette(level);
+    phase = RESTART_CARD;
+    transitionTick = 0;
+    scoreDirty = hudRefresh = 2;
+    return true;
 }
 
 // Test runs get the whole game, but no seat in the league of order.
@@ -667,7 +727,7 @@ static void drawDeveloperMenu(void)
 
 void openingAttractBegin(uint8_t credits, bool redCastle)
 {
-    openingBegin(credits);
+    beginScene(credits, true);
     attractMode = true;
     paradeTick = 0;
     paradeRefresh = 2;
@@ -698,7 +758,7 @@ static void advanceHop(void)
 
 bool openingUpdate(void)
 {
-    // The 1 and the map dot blink together every 16 ticks.
+    // Both blink for 16 ticks per half-cycle. The map dot follows one tick later.
     ++hudTick;
     // F0/F3, F1/F4 and F2/F (frame tiles) are pairs. Those animate independently
     if (fireStage() && phase == LEVEL_READY) {
@@ -763,22 +823,26 @@ bool openingUpdate(void)
 
         case LEVEL_READY:
             if (rescueStage()) {
-                unsigned result = rescueUpdate(leftDown, rightDown, jumpQueued, jumpHeight);
+                RescueResult result = rescueUpdate(leftDown, rightDown, jumpQueued);
                 jumpQueued = false;
                 quasiX8 = rescue.x8; feet8 = rescue.feet8; quasiFeet = feet8 / 8;
                 quasiFrame = rescue.frame; facingLeft = rescue.facingLeft;
-                unsigned floor = quasiFeet >= 164 ? 0 : quasiFeet >= 124 ? 1 : quasiFeet >= 84 ? 2 : 3;
-                projectilesAim(floor, rescue.held);
+                projectilesAim(rescueFloorAt(feet8), rescue.held);
                 projectilesUpdate();
-                for (unsigned i = 0; i < 2 && !result; ++i) {
+                for (unsigned i = 0; i < 2 && result == RESCUE_PLAYING; ++i) {
                     const Projectile *p = &projectiles[i];
                     if (!p->flags) continue;
                     int ax = p->x8 / 8, ay = projectileY(p), x = quasiX8 / 8;
                     if (x + 12 > ax + 1 && x + 4 < ax + 11
-                        && quasiFeet > ay && quasiFeet - 20 < ay + 3) result = 1;
+                        && quasiFeet > ay && quasiFeet - 20 < ay + 3) {
+                        beginFall(WEAPON_HIT);
+                        break;
+                    }
                 }
-                if (result == 1) { velocity8 = 80; phase = FALLING; }
-                else if (result == 2) {
+                if (result == RESCUE_HOLE) beginFall(PIT_DROP);
+                else if (result == RESCUE_MISSED) beginFall(MISSED_JUMP);
+                else if (result == RESCUE_TIMEOUT) beginFall(CAUGHT);
+                else if (result == RESCUE_COMPLETE) {
                     // ROM $31AC rounds down, then pays each remaining Esmie separately.
                     rescue.progress = (rescue.progress & 0xE0) | 28;
                     scoring.bells = 0;
@@ -792,11 +856,10 @@ bool openingUpdate(void)
                 knightUpdate();
                 if (guardStage()) guardsUpdate();
                 updatePlayer();
-                if (phase == LEVEL_READY && (knightCaught(quasiX8)
-                    || (guardStage() && guardsHit(quasiX8, quasiFeet)))) {
-                    // Knight Stalker still refuses to let you jump over him.
-                    onRope = false; airborne = false; jumpQueued = false;
-                    velocity8 = 80; phase = FALLING;
+                if (phase == LEVEL_READY) {
+                    if (knightCaught(quasiX8)) beginFall(CAUGHT);
+                    else if (guardStage() && guardsHit(quasiX8, quasiFeet))
+                        beginFall(WEAPON_HIT);
                 }
             }
             break;
@@ -827,14 +890,14 @@ bool openingUpdate(void)
             break;
 
         case FALLING:
-            // Quasi falling to his doom
-// There's nothing he could do
-            velocity8 += 4;
-            if (velocity8 > 80)
-                velocity8 = 80;
-            feet8 += velocity8;
-            quasiFeet = feet8 / 8;
-            quasiFrame = 6;
+            if (hitFall) {
+                // $08DC holds the hit pose for 50 VBlanks. A pit has no hit pause.
+                if (deathTick < 50) { ++deathTick; return false; }
+                // $08EC adds a second fall step on alternate frames after a hit.
+                if (deathTick >= 52 && !(deathTick & 1)) fallStep();
+                ++deathTick;
+            }
+            fallStep();
             if (quasiFeet >= GFX_LCD_HEIGHT + QUASI_HEIGHT) {
                 deathTick = 0;
                 if (!developerUnlimited) --lives;
@@ -863,7 +926,8 @@ bool openingUpdate(void)
                 gfx_SetPalette(scene_palette, sizeof_scene_palette, SCENE_BASE);
                 stagePalette(level);
                 transitionTick = 0;
-                phase = lives ? RESTART_CARD : GAME_OVER;
+                if (!lives) phase = GAME_OVER;
+                else if (!openingResumePartner()) phase = RESTART_CARD;
             }
             break;
 
@@ -989,15 +1053,15 @@ static void drawFallPatch(void)
     for (int row = 0; row < QUASI_HEIGHT; ++row) {
         int y = fallPatchY[fallBuffer] + row;
         if (y >= 0 && y < GFX_LCD_HEIGHT)
-            for (int col = 0; col < QUASI_WIDTH; ++col)
-                pixels[y * GFX_LCD_WIDTH + x + col] = fallPatch[fallBuffer][row * QUASI_WIDTH + col];
+            memcpy(pixels + y * GFX_LCD_WIDTH + x,
+                   fallPatch[fallBuffer] + row * QUASI_WIDTH, QUASI_WIDTH);
     }
     fallPatchY[fallBuffer] = quasiFeet - QUASI_HEIGHT;
     for (int row = 0; row < QUASI_HEIGHT; ++row) {
         int y = fallPatchY[fallBuffer] + row;
         if (y >= 0 && y < GFX_LCD_HEIGHT)
-            for (int col = 0; col < QUASI_WIDTH; ++col)
-                fallPatch[fallBuffer][row * QUASI_WIDTH + col] = pixels[y * GFX_LCD_WIDTH + x + col];
+            memcpy(fallPatch[fallBuffer] + row * QUASI_WIDTH,
+                   pixels + y * GFX_LCD_WIDTH + x, QUASI_WIDTH);
     }
     drawQuasi();
     gfx_SwapDraw();
@@ -1100,7 +1164,10 @@ void openingDraw(uint8_t credits)
     if (phase == RESTART_CARD || phase == GAME_OVER) {
         gfx_FillScreen(SCENE_BLACK);
         gfx_SetTextFGColor(SCENE_BASE + 11);
-        gfx_PrintStringXY(phase == GAME_OVER ? "PLAYER 1 GAME OVER" : "PLAYER 1",
+        char card[] = "PLAYER 1 GAME OVER";
+        card[7] += playerIndex;
+        if (phase != GAME_OVER) card[8] = 0;
+        gfx_PrintStringXY(card,
                           phase == GAME_OVER ? 88 : 128, 116);
         drawCredits(credits);
         drawDeveloperLabel();
@@ -1123,8 +1190,15 @@ void openingDraw(uint8_t credits)
         gfx_SetClipRegion(32, 0, 280, CASTLE_BOTTOM);
         for (unsigned i = 0; i < 2; ++i) {
             const Projectile *p = &projectiles[i];
-            if (p->flags) gfx_TransparentSprite((p->flags & 1)
-                ? (gfx_sprite_t *)leftArrow : game_arrow, p->x8 / 8, projectileY(p));
+            if (!p->flags) continue;
+            gfx_sprite_t *arrow = (p->flags & 1) ? (gfx_sprite_t *)leftArrow : game_arrow;
+            int x = p->x8 / 8, y = projectileY(p);
+            gfx_TransparentSprite(arrow, x, y);
+            if (x < 24 && y < 88) {
+                gfx_SetClipRegion(0, 0, 24, 88);
+                gfx_TransparentSprite(arrow, x, y);
+                gfx_SetClipRegion(32, 0, 280, CASTLE_BOTTOM);
+            }
         }
         gfx_SetClipRegion(0, 0, 320, 240);
         if (phase == LEVEL_READY || phase == RESCUE_PAYOUT) drawQuasi();
@@ -1220,7 +1294,7 @@ hudFooter:
     gfx_FillRectangle(104, 224, 8, 8);
     if (!attractMode && (phase < LEVEL_READY || !(hudTick & 16))) {
         gfx_SetTextFGColor(SCENE_WHITE);
-        gfx_PrintStringXY("1", 104, 224);
+        gfx_PrintStringXY(playerIndex ? "2" : "1", 104, 224);
     }
     drawCredits(credits);
     if (scoreDirty) {
@@ -1248,12 +1322,15 @@ hudFooter:
         gfx_Sprite(game_lificon, 128 + i * 8, 224);
     if (phase == FALLING) {
         drawDeveloperLabel();
-        // He can fall through SCORE without making the CPU repaint the castle.
-        gfx_BlitBuffer();
+        // Show the hit pose before copying the frame. Quasi used to blink out here.
         fallPatchY[0] = fallPatchY[1] = GFX_LCD_HEIGHT;
         fallBuffer = 0;
         fallCached = true;
         drawFallPatch();
+        gfx_Wait();
+        gfx_BlitScreen();
+        fallPatchY[1] = fallPatchY[0];
+        memcpy(fallPatch[1], fallPatch[0], sizeof fallPatch[0]);
         return;
     }
     if (phase == DEATH_WIPE) {

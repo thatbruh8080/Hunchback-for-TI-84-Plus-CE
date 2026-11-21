@@ -209,6 +209,7 @@ int main(void)
     uint8_t previousKeys[8];
     for (unsigned g = 1; g < 8; ++g) previousKeys[g] = kb_Data[g];
     bool coinWasDown = kb_IsDown(kb_Key5);
+    bool twoPlayers = false;
     bool startWasDown = kb_IsDown(kb_Key1);
     bool jumpWasDown = kb_IsDown(kb_Key2nd);
     for (;;) {
@@ -293,8 +294,10 @@ int main(void)
         bool canStart = screen != PLAYER_START
             && !(screen == BLACK && next == PLAYER_START)
             && screen != OPENING;
-        if (canStart && startPressed && credits) {
-            --credits;
+        bool pairStart = pressedKey == kb_Key2 && credits >= 2;
+        if (canStart && (pairStart || (startPressed && credits))) {
+            twoPlayers = pairStart;
+            credits -= pairStart ? 2 : 1;
             next = PLAYER_START;
             blankTicks = 10;
             screen = BLACK;
@@ -331,7 +334,7 @@ int main(void)
         }
         if (screen == PLAYER_START) {
             if (now - stateTime >= CLOCKS_PER_SEC) {
-                openingBegin(credits); // Fresh scoar
+                openingStartGame(credits, twoPlayers);
                 openingDraw(credits);
                 screen = OPENING;
                 lastFrame = clock();
@@ -370,6 +373,12 @@ int main(void)
                 startWasDown = kb_IsDown(kb_Key1);
                 jumpWasDown = kb_IsDown(kb_Key2nd);
                 now = clock();
+                if (openingResumePartner()) {
+                    for (unsigned g = 1; g < 8; ++g) previousKeys[g] = kb_Data[g];
+                    openingDraw(credits);
+                    lastFrame = now;
+                    continue;
+                }
                 next = HIGH_SCORES;
                 blankTicks = 10;
                 demoNext = true;

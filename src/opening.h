@@ -5,7 +5,8 @@
 #include <stdint.h>
 
 // The main loop calls openingUpdate() at 50 ticks per second.
-void openingBegin(uint8_t credits);
+void openingStartGame(uint8_t credits, bool pair);
+bool openingResumePartner(void);
 void openingInput(bool left, bool right, bool jumpPressed);
 bool openingGameOver(void);
 bool openingReturnToTitle(void);

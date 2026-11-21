@@ -22,8 +22,10 @@ void guardsUpdate(void)
     // Rest, lift, poke some butt, lower. A full cycle takes 82 ticks.
     static const uint8_t duration[4] = {64, 5, 7, 6};
     for (unsigned i = 0; i < 3; ++i) {
-        if (knightPassed(guardX[i]))
+        if (knightPassed(guardX[i])) {
+            pose[i] = 0; // Bricked in. His butt-skewering shift is over.
             continue;
+        }
         if (--delay[i] == 0) {
             pose[i] = (pose[i] + 1) & 3;
             delay[i] = duration[pose[i]];
@@ -49,11 +51,21 @@ bool guardsHit(int playerX8, int playerFeet)
 void guardsDrawOffset(int offset)
 {
     for (unsigned i = 0; i < 3; ++i) {
-        // Knight Stalker has laid their ceiling. They're off duty now.
-        if (knightPassed(guardX[i]))
-            continue;
         unsigned frame = pose[i] == 3 ? 1 : pose[i];
-        gfx_TransparentSprite((gfx_sprite_t *)pitguardCache[frame], guardX[i] + offset, 72);
+        gfx_sprite_t *guard = (gfx_sprite_t *)pitguardCache[frame];
+        if (knightPassed(guardX[i])) {
+            guard = (gfx_sprite_t *)pitguardCache[0];
+            // Rest below the new bricks, with the spear hidden by the ceiling.
+            gfx_region_t clip = {0, 0, 320, 240};
+            if (gfx_GetClipRegion(&clip) && clip.ymax > 96) {
+                gfx_SetClipRegion(clip.xmin, clip.ymin < 96 ? 96 : clip.ymin,
+                                  clip.xmax, clip.ymax);
+                gfx_TransparentSprite(guard, guardX[i] + offset, 72);
+                gfx_SetClipRegion(clip.xmin, clip.ymin, clip.xmax, clip.ymax);
+            }
+        } else {
+            gfx_TransparentSprite(guard, guardX[i] + offset, 72);
+        }
     }
 }
 

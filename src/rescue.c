@@ -103,28 +103,35 @@ static bool floorSupports(unsigned floor, int x8)
     return false;
 }
 
-unsigned rescueUpdate(bool left, bool right, bool jump, const uint8_t *arc)
+uint8_t rescueFloorAt(int feet8)
+{
+    // ROM $2C27 uses Quasi's sprite origin. CE feet sit four pixels above it.
+    if (feet8 > 162 * 8) return 0;
+    if (feet8 > 122 * 8) return 1;
+    if (feet8 > 82 * 8) return 2;
+    return 3;
+}
+
+RescueResult rescueUpdate(bool left, bool right, bool jump)
 {
     Rescue *r = &rescue;
     ropesTick();
     // Five Esmies, 32 steps each, one step every 38 video ticks.
     if (++r->clock38 == 38) { r->clock38 = 0; ++r->progress; }
-    if (r->progress >= 160) return 1;
+    if (r->progress >= 160) return RESCUE_TIMEOUT;
     int direction = (int)right - (int)left;
     if (r->held >= 0) {
         r->feet8 = r->ropeOffset[r->held] * 8 - r->grip8;
         if (r->feet8 < 60 * 8) {
             r->feet8 = 60 * 8;
-            r->grip8 = r->ropeOffset[r->held] * 8 - r->feet8;
+            // Keep the grabbed point as the rope winds past the top stop.
         }
         r->frame = 7;
-        if (!jump) return 0;
+        if (!jump) return RESCUE_PLAYING;
         r->lastRope = r->held; r->held = -1;
-        // Aim at the nearest storey. Missing it is not a shortcut downstairs.
-        int target = (204 - r->feet8 / 8) / 40;
-        r->floor = target < 0 ? 0 : target > 3 ? 3 : target;
-        r->airborne = true; r->jumpTick = 0; r->jumpStart8 = r->feet8;
-    } else if (jump && !r->airborne) {
+        r->floor = rescueFloorAt(r->feet8);
+    }
+    if (jump && !r->airborne) {
         r->airborne = true; r->jumpTick = 0; r->jumpStart8 = r->feet8;
     }
     if (direction) {
@@ -134,25 +141,27 @@ unsigned rescueUpdate(bool left, bool right, bool jump, const uint8_t *arc)
     }
     if (r->x8 < 40 * 8) r->x8 = 40 * 8;
     if (r->x8 > 257 * 8) r->x8 = 257 * 8;
-    int oldFeet = r->feet8;
+    bool overDeck = r->x8 >= (72 - 11) * 8 && r->x8 < (240 - 5) * 8;
     if (r->airborne) {
-        if (r->jumpTick < 48) {
-            ++r->jumpTick;
-            r->feet8 = r->jumpStart8 - arc[r->jumpTick] * 8;
-            r->velocity8 = r->feet8 - oldFeet;
-        } else {
-            r->velocity8 += 4;
-            if (r->velocity8 > 40) r->velocity8 = 40;
-            r->feet8 += r->velocity8;
-        }
-        r->frame = 4 + r->jumpTick * 3 / 49;
-        if (r->velocity8 >= 0) {
-            int f = r->floor;
+        // $29A3 moves every fourth tick. Spread each step over all four on CE.
+        static const int8_t riseAndFall8[] = {
+            -8, -8, -6, -6, -4, -2, 0, 2, 4, 6, 6, 8, 8
+        };
+        unsigned step = r->jumpTick >> 2;
+        int dy8 = step < 13 ? riseAndFall8[step] : 8;
+        int oldFeet8 = r->feet8;
+        r->feet8 += dy8;
+        ++r->jumpTick;
+        r->frame = step < 4 ? 4 : step < 8 ? 5 : 6;
+        if (dy8 > 0 && overDeck) {
+            unsigned f = rescueFloorAt(r->feet8);
             int y8 = (184 - f * 40) * 8;
-            if (oldFeet <= y8 && r->feet8 >= y8 && floorSupports(f, r->x8)) {
+            // $2942 also snaps a descending foot within three pixels of the deck.
+            if (oldFeet8 <= y8 && (r->feet8 >= y8
+                || (!(r->jumpTick & 3) && r->feet8 >= y8 - 3 * 8))) {
                 if (r->floor != f) r->armed = -1;
                 r->feet8 = y8; r->floor = f; r->airborne = false;
-                r->lastRope = -1; r->velocity8 = 0;
+                r->lastRope = -1;
                 r->frame = (r->walkTick / 5) & 3;
             }
         }
@@ -162,19 +171,20 @@ unsigned rescueUpdate(bool left, bool right, bool jump, const uint8_t *arc)
         int hand = r->facingLeft ? 3 : 12;
         int dx = r->x8 / 8 + hand - ropeX[i];
         // ROM $2B40 blocks catching during a jump, not until you shuffle sideways.
-        if (r->lastRope == (int)i && r->jumpTick >= 48) r->lastRope = -1;
+        if (r->lastRope == (int)i && r->jumpTick >= 52) r->lastRope = -1;
         if (r->lastRope != (int)i && dx >= -3 && dx <= 3
             && r->feet8 / 8 - 12 >= 48
             && r->feet8 / 8 - 12 < r->ropeOffset[i] + 44) {
             r->held = i; r->grip8 = r->ropeOffset[i] * 8 - r->feet8;
+            r->airborne = false;
             r->x8 = (ropeX[i] - hand) * 8; r->frame = 7; r->armed = -1;
-            return 0;
+            return RESCUE_PLAYING;
         }
     }
     // Jumping over a bell still pulls it out. Quasi isn't getting out of chores.
     int floorY8 = (184 - r->floor * 40) * 8;
     bool overFloor = !r->airborne || (r->jumpStart8 == floorY8
-        && r->feet8 <= floorY8 && r->jumpTick <= 48);
+        && r->feet8 <= floorY8 && r->jumpTick <= 52);
     if (overFloor) {
         int centre = r->x8 / 8 + 8;
         if (r->armed >= 0) {
@@ -188,16 +198,17 @@ unsigned rescueUpdate(bool left, bool right, bool jump, const uint8_t *arc)
             if (!(r->cleared[r->floor] & (1u << g))
                 && centre >= groupX[g] + 8 && centre < groupX[g] + 16) r->armed = g;
         if (!r->airborne && !floorSupports(r->floor, r->x8)) {
-            // Meeting Claude Frollo. An unopened rivet downstairs won't save him.
-            return 1;
+            // Meeting Claude Frollo. The bells downstairs stay put on the way past.
+            return RESCUE_HOLE;
         }
     } else r->armed = -1;
-    // Give a vertical jump its rope re-grab above, then commit a miss to death.
-    // Meeting Claude Frollo. Only the intended floor gets a landing check.
-    if (r->airborne && r->jumpTick >= 48 && r->feet8 >= floorY8) return 1;
-    if (r->feet8 > 208 * 8) return 1;
-    if ((r->cleared[0] & r->cleared[1] & r->cleared[2] & r->cleared[3]) == 7) return 2;
-    return 0;
+    // Inside the deck, $295A gives the jump three extra four-pixel steps.
+    // Over empty air the jump ends at its usual length. A rope gets first dibs.
+    if (r->airborne && r->jumpTick >= 52 && (!overDeck || r->jumpTick == 64))
+        return RESCUE_MISSED;
+    if ((r->cleared[0] & r->cleared[1] & r->cleared[2] & r->cleared[3]) == 7)
+        return RESCUE_COMPLETE;
+    return RESCUE_PLAYING;
 }
 
 void rescueDraw(int offset, bool occupants)

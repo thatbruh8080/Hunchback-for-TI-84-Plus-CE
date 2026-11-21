@@ -12,8 +12,10 @@ void projectilesAim(uint8_t floor, int ropeSide)
     launchFloor = floor;
     launchChoices = choices;
     if ((stageNumber & 15) == 15) {
-        static const uint8_t hardChoices[4] = {0x98, 0x58, 0x78, 0xF8};
-        if (stageNumber == 31) launchChoices = hardChoices[floor];
+        // $2D77/$2E06: the first rescue reads slot zero's last launch floor.
+        // The second rescue gets all four lanes right from the bottom.
+        static const uint8_t firstRescueChoices[4] = {0x98, 0x58, 0x78, 0xF8};
+        if (stageNumber == 15) launchChoices = firstRescueChoices[projectiles[0].floor];
         // While hanging at an edge, shoot towards Quasi from the other side.
         if (ropeSide >= 0) launchChoices &= ropeSide ? 0x30 : 0xC0;
     }
@@ -53,6 +55,7 @@ void projectilesReset(unsigned stage)
     cooldown = stage == 5 ? 80 : 0;
     projectiles[0].flags = projectiles[1].flags = 0;
     projectiles[0].x8 = projectiles[1].x8 = 0;
+    projectiles[0].floor = projectiles[1].floor = 0;
 }
 
 void projectilesUpdate(void)
@@ -61,15 +64,16 @@ void projectilesUpdate(void)
     if (cooldown) --cooldown;
     for (unsigned i = 0; i < 2; ++i) {
         Projectile *p = &projectiles[i];
-        if (!p->flags && launchChoices && !cooldown && (!i || (launchChoices & 8))) {
+        if (!p->flags && (launchChoices & 0xF0) && !cooldown && (!i || (launchChoices & 8))) {
             static const uint8_t flags[4] = {1, 0x81, 2, 0x82};
-            uint8_t selected;
+            uint8_t index, tries = 0;
             do {
-                selected = 0x80 >> (nextRandom() & 3);
-            } while (!(selected & launchChoices));
+                // A CE clock seed can get stuck asking for the same forbidden lane.
+                // The default stream visits all four within its first seven rolls.
+                if (++tries == 64) projectilesSeed(0);
+                index = nextRandom() & 3;
+            } while (!(launchChoices & (0x80u >> index)));
             // ROM $2DFD-$2E04, with direction translated to CE screen X.
-            unsigned index = selected == 0x80 ? 0 : selected == 0x40 ? 1
-                : selected == 0x20 ? 2 : 3;
             p->flags = flags[index];
             p->floor = launchFloor;
             // Adapt the entry edges to the CE's wider playfield.
