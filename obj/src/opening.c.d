@@ -4,6 +4,7 @@ obj/src/opening.c.bc: src\opening.c \
   C:\Users\Jummy\Downloads\CEdev-Windows\CEdev\include\cdefs.h \
   C:\Users\Jummy\Downloads\CEdev-Windows\CEdev\include\stdlib.h \
   C:\Users\Jummy\Downloads\CEdev-Windows\CEdev\include\stdbool.h \
+  C:\Users\Jummy\Downloads\CEdev-Windows\CEdev\include\string.h \
   C:\Users\Jummy\Downloads\CEdev-Windows\CEdev\include\time.h \
   src\gfx\gfx.h src\gfx\titlequasi_palette.h src\gfx\esmie_palette.h \
   src\gfx\scene_palette.h src\gfx\logo.h src\gfx\bigfatquasi.h \
