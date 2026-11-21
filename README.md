@@ -35,7 +35,7 @@ You get a **BONUS MAN AT 10000**
 
 `clear` quits
 
-`Typing in "ISUCK"` activates Developer Mode, you can choose levels and choose lives up until ten then infinity. You can kinda say it's a cheat mode but scores are not saved after a game over and you get an annoying DEVELOPER MODE banner. Mainly just for testing
+`Typing in "ISUCK"` at the title screen activates Developer Mode, you can choose levels and choose lives up until ten then infinity. You can kinda say it's a cheat mode but scores are not saved after a game over and you get an annoying DEVELOPER MODE banner. Mainly just for testing
 
 # erro
 Unless you're below OS 5.5.5 TI got rid of machine language program support (I mean this is OBVIOUSLY not made using TI-Basic) so you need a jailbreak called ArTIfiCE, on current versions there's a program called A, that's the jailbreak.
